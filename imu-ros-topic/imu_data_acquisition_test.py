@@ -1,3 +1,5 @@
+
+# libraries required for imu / circuitpython wrapper (I think it's circuitpython?)
 import time
 import board
 import adafruit_icm20x
