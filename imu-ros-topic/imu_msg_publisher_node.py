@@ -1,9 +1,9 @@
 
 """
-Description: Publisher for sensor_msg/Imu message from our Sparkfun20948 dataset
-Author: Victor & this lovely github post
-https://github.com/ev3dev-lang-java/ev3dev-lang-java/issues/356
-Date: Feb 2024
+    Description: Publisher for sensor_msg/Imu message from our Sparkfun20948 dataset
+    Author: Victor & this lovely github post
+    https://github.com/ev3dev-lang-java/ev3dev-lang-java/issues/356
+    Date: Feb 2024
 """
 
 import sys
@@ -32,106 +32,111 @@ mag_msg = MagneticField()   # Magnetometer data
 i2c = board.I2C()  # uses board.SCL and board.SDA
 icm = adafruit_icm20x.ICM20948(i2c)
 
+print("I2C connection to IMU board established successfully...")
+
 def get_imu_values():
-    imu_raw = {
-        'lin_acceleration': icm.acceleration,
-        'gyro': icm.gyro,
-        'magnetometer': icm.magnetic,
-    }
+	imu_raw = {
+		'linear_acceleration': icm.acceleration,
+		'gyro': icm.gyro,
+		'magnetometer': icm.magnetic,
+	}
 
-    print(icm.acceleration, "<-- type of icm.acceleration:", type(icm.acceleration))
+	# print(icm.acceleration, "<-- type of icm.acceleration:", type(icm.acceleration))
 
-    print("Acceleration: X:%.2f, Y: %.2f, Z: %.2f m/s^2" % (icm.acceleration))
-    print("Gyro X:%.2f, Y: %.2f, Z: %.2f rads/s" % (icm.gyro))
-    print("Magnetometer X:%.2f, Y: %.2f, Z: %.2f uT" % (icm.magnetic))
+	# print("Acceleration: X:%.2f, Y: %.2f, Z: %.2f m/s^2" % (icm.acceleration))
+	# print("Gyro X:%.2f, Y: %.2f, Z: %.2f rads/s" % (icm.gyro))
+	# print("Magnetometer X:%.2f, Y: %.2f, Z: %.2f uT" % (icm.magnetic))
 
-    return imu_raw
+	return imu_raw
 
 # Main function
 if __name__ == '__main__':
-    # change "imu" to whatever you want Node name to be
-    rospy.init_node("imu")
+	# change "imu" to whatever you want Node name to be
+	rospy.init_node("imu")
 
-    # Sensor measurements publishers
-    pub_raw = rospy.Publisher('imu/raw', Imu, queue_size=1)
-    pub_data = rospy.Publisher('imu/data', Imu, queue_size=1)
-    pub_mag = rospy.Publisher('imu/mag', MagneticField, queue_size=1)
+	# Sensor measurements publishers
+	pub_raw = rospy.Publisher('imu/raw', Imu, queue_size=1)
+	pub_data = rospy.Publisher('imu/data', Imu, queue_size=1)
+	pub_mag = rospy.Publisher('imu/mag', MagneticField, queue_size=1)
 
-    # Get parameters values
+	# Get parameters values
     frame_id = rospy.get_param('~frame_id', 'imu_link')
     frequency = rospy.get_param('~frequency', 100)
 
-    rate = rospy.Rate(frequency)
+	rate = rospy.Rate(frequency)
 
-    # don't know what this is ... documenting this later
-    seq = 0
+	print("Topics 'imu/raw', 'imu/data', 'imu/mag' created successfully")
 
-    while not rospy.is_shutdown():
-        raw_imu_vals = get_imu_values()
+	# don't know what this is ... documenting this later
+	seq = 0
 
-        # Publish raw data
-        imu_raw.header.stamp = rospy.Time.now()
-        imu_raw.header.frame_id = frame_id
-        imu_raw.header.seq = seq
+	while not rospy.is_shutdown():
+		raw_imu_vals = get_imu_values()
 
-        imu_raw.orientation_covariance[0] = -1
+		# Publish raw data
+		imu_raw.header.stamp = rospy.Time.now()
+		imu_raw.header.frame_id = frame_id
+		imu_raw.header.seq = seq
 
-        imu_raw.linear_acceleration.x = float(raw_imu_vals['linear_acceleration'][0])
-        imu_raw.linear_acceleration.y = float(raw_imu_vals['linear_acceleration'][1])
-        imu_raw.linear_acceleration.z = float(raw_imu_vals['linear_acceleration'][2])
-        imu_raw.linear_acceleration_covariance[0] = -1
+		imu_raw.orientation_covariance[0] = -1
 
-        imu_raw.angular_velocity.x = float(raw_imu_vals['gyro'][0])
-        imu_raw.angular_velocity.y = float(raw_imu_vals['gyro'][1])
-        imu_raw.angular_velocity.z = float(raw_imu_vals['gyro'][2])
-        imu_raw.angular_velocity_covariance[0] = -1
+		imu_raw.linear_acceleration.x = float(raw_imu_vals['linear_acceleration'][0])
+		imu_raw.linear_acceleration.y = float(raw_imu_vals['linear_acceleration'][1])
+		imu_raw.linear_acceleration.z = float(raw_imu_vals['linear_acceleration'][2])
+		imu_raw.linear_acceleration_covariance[0] = -1
 
-        pub_raw.publish(imu_raw)
+		imu_raw.angular_velocity.x = float(raw_imu_vals['gyro'][0])
+		imu_raw.angular_velocity.y = float(raw_imu_vals['gyro'][1])
+		imu_raw.angular_velocity.z = float(raw_imu_vals['gyro'][2])
+		imu_raw.angular_velocity_covariance[0] = -1
 
-        # Publish filtered data
-        imu_data.header.stamp = rospy.Time.now()
-        imu_data.header.frame_id = frame_id
-        imu_data.header.seq = seq
+		pub_raw.publish(imu_raw)
 
-        # extended kalaman filter; for acc and gyro values to quaternion
-        ekf = EKF(
-            gyr = raw_imu_vals['gyro'],
-            acc = raw_imu_vals['linear_acceleration'],
-        )
-        # access with ekf.Q.shape
+		# Publish filtered data
+		imu_data.header.stamp = rospy.Time.now()
+		imu_data.header.frame_id = frame_id
+		imu_data.header.seq = seq
 
-        imu_data.orientation.w = float(ekf.Q[0])
-        imu_data.orientation.x = float(ekf.Q[1])
-        imu_data.orientation.y = float(ekf.Q[2])
-        imu_data.orientation.z = float(ekf.Q[3])
-        imu_raw.orientation_covariance[0] = -1
-        # <-- no covariance setting necessary here? according to the github
-        # link in the description above
+		# extended kalaman filter; for acc and gyro values to quaternion
+		ekf = EKF(
+		    gyr = np.array([raw_imu_vals['gyro']]),
+		    acc = np.array([raw_imu_vals['linear_acceleration']]),
+		)
+		# access with ekf.Q.shape
 
-        imu_data.linear_acceleration.x = float(raw_imu_vals['linear_acceleration'][0])
-        imu_data.linear_acceleration.y = float(raw_imu_vals['linear_acceleration'][1])
-        imu_data.linear_acceleration.z = float(raw_imu_vals['linear_acceleration'][2])
-        imu_data.linear_acceleration_covariance[0] = -1
+		imu_data.orientation.w = float(ekf.Q[0][0])
+		imu_data.orientation.x = float(ekf.Q[0][1])
+		imu_data.orientation.y = float(ekf.Q[0][2])
+		imu_data.orientation.z = float(ekf.Q[0][3])
+		imu_raw.orientation_covariance[0] = -1
 
-        imu_data.angular_velocity.x = float(raw_imu_vals['gyro'][0])
-        imu_data.angular_velocity.y = float(raw_imu_vals['gyro'][1])
-        imu_data.angular_velocity.z = float(raw_imu_vals['gyro'][2])
-        imu_data.angular_velocity_covariance[0] = -1
+		imu_data.linear_acceleration.x = float(raw_imu_vals['linear_acceleration'][0])
+		imu_data.linear_acceleration.y = float(raw_imu_vals['linear_acceleration'][1])
+		imu_data.linear_acceleration.z = float(raw_imu_vals['linear_acceleration'][2])
+		imu_data.linear_acceleration_covariance[0] = -1
 
-        pub_data.publish(imu_data)
+		imu_data.angular_velocity.x = float(raw_imu_vals['gyro'][0])
+		imu_data.angular_velocity.y = float(raw_imu_vals['gyro'][1])
+		imu_data.angular_velocity.z = float(raw_imu_vals['gyro'][2])
+		imu_data.angular_velocity_covariance[0] = -1
 
-        # Publish magnetometer data
-        mag_msg.header.stamp = rospy.Time.now()
-        mag_msg.header.frame_id = frame_id
-        mag_msg.header.seq = seq
+		pub_data.publish(imu_data)
 
-        mag_msg.magnetic_field.x = float(raw_imu_vals['magnetometer'][0])
-        mag_msg.magnetic_field.y = float(raw_imu_vals['magnetometer'][1])
-        mag_msg.magnetic_field.z = float(raw_imu_vals['magnetometer'][2])
+		# Publish magnetometer data
+		mag_msg.header.stamp = rospy.Time.now()
+		mag_msg.header.frame_id = frame_id
+		mag_msg.header.seq = seq
 
-        pub_mag.publish(mag_msg)
+		mag_msg.magnetic_field.x = float(raw_imu_vals['magnetometer'][0])
+		mag_msg.magnetic_field.y = float(raw_imu_vals['magnetometer'][1])
+		mag_msg.magnetic_field.z = float(raw_imu_vals['magnetometer'][2])
 
-        seq = seq + 1
-        rate.sleep()
+		pub_mag.publish(mag_msg)
 
-    ser.close()
+		if seq == 0:
+			print("Successfully published on all topics, ekf filter working, good stuff")
+
+		seq = seq + 1
+		rate.sleep()
+
+	ser.close() # can't say I know what ser is...
