@@ -67,7 +67,7 @@ if __name__ == '__main__':
 
 	print("Topics 'imu/raw', 'imu/data', 'imu/mag' created successfully")
 
-	# don't know what this is ... documenting this later
+	# required for Ros header, keeping track of num of broadcasts
 	seq = 0
 
 	while not rospy.is_shutdown():
@@ -138,5 +138,3 @@ if __name__ == '__main__':
 
 		seq = seq + 1
 		rate.sleep()
-
-	ser.close() # can't say I know what ser is...
