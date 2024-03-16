@@ -1,7 +1,6 @@
 import time
 
 SMALL_WAIT = 1 / 60
-LARGE_WAIT = 1 / 20
 
 STATE_FROM_MASTER = {
     "frames": {
@@ -38,7 +37,7 @@ STATE_FROM_MASTER = {
         "motion": 0,
     },
 
-    "now": time.time(),
+    "server_now": time.time(),
 }
 STATE_FROM_SELF = {
     "run": {

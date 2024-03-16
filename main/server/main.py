@@ -1,4 +1,5 @@
 import time
+import json
 
 import flask
 import flask_sock
@@ -102,10 +103,8 @@ def thread(server_dq, server_motor_dq):
 
     @sock.route("/updates")
     def updates(ws):
-        last_master = time.time()
-        last_motor = time.time()
-
         while True:
+            print("updates")
             server_ds.update_s1(server_dq)
             server_motor_ds.update_s2(server_motor_dq)
 
@@ -119,17 +118,11 @@ def thread(server_dq, server_motor_dq):
             fps_controller.update()
             server_ds.s1["fpses"][-1] = fps_controller.fps()
 
-            if server_ds.s1["now"] > last_master or server_motor_ds.s2["now"] > last_motor:
-                last_master = server_ds.s1["now"]
-                last_motor = server_motor_ds.s2["now"]
+            now = time.time()
+            server_ds.s1["server_now"] = now
 
-                now = time.time()
-                server_ds.s1["server_now"] = now
-
-                ws.send(flask.jsonify(server_ds.s1))
-                time.sleep(server.consts.LARGE_WAIT)
-            else:
-                time.sleep(server.consts.SMALL_WAIT)
+            ws.send(json.dumps(server_ds.s1))
+            time.sleep(server.consts.SMALL_WAIT)
 
     
     # @app.route("/get", methods=["GET"])
@@ -150,4 +143,4 @@ def thread(server_dq, server_motor_dq):
     #     return create_response(server_ds.s1)
 
 
-    app.run(debug=False, port=5000, host="0.0.0.0", threaded=False, processes=1)
+    app.run(debug=False, port=5000, host="0.0.0.0", threaded=True, processes=1)

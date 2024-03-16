@@ -622,15 +622,19 @@ input[type="range"] {
         }
 
         const path = "updates";
-        const ws = new WebSocket("ws://" + current_url + path);
+        const ws_base_path = current_url.replace("http://", "ws://").replace("https://", "wss://");
+        const ws = new WebSocket(ws_base_path + path);
         ws.addEventListener("open", (e) => {
             console.log("WEBSOCKET CONNECTED");
         });
+
+        // TODO: try to reconnect after ~1 sec
         ws.addEventListener("close" , (e) => {
             console.log("WEBSOCKET CLOSED");
             disconnect();
         });
         ws.addEventListener("error", (e) => {
+            console.log("WEBSOCKET ERROR");
             disconnect();
         });
 
@@ -644,6 +648,7 @@ input[type="range"] {
             t0 = t1;
 
             try {
+                // TODO: put in a seperate setInterval
                 try_connect();
                 try_calibrate();
 
@@ -845,7 +850,7 @@ input[type="range"] {
                 const average = delays.reduce((a, b) => a + b, 0) / delays.length;
                 const average_delay = average.toFixed(0);
 
-                const ping = now - data["server_time"] * 1000;
+                const ping = now - data["server_now"] * 1000;
                 const ping_delay = ping.toFixed(0);
 
                 const max_delay = Math.max(inital_delay, average_delay, ping_delay, DELAY_RATIO_BASE);

@@ -32,5 +32,4 @@ STATE_FROM_SELF = {
         }
     },
     "motor_fps": 20,
-    "now": time.time(),
 }
