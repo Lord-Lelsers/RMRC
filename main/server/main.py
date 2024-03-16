@@ -1,6 +1,7 @@
 import time
 
 import flask
+import flask_sock
 import logging
 
 import shared_util
@@ -20,6 +21,7 @@ def thread(server_dq, server_motor_dq):
     log.setLevel(logging.WARNING)
 
     app = flask.Flask(__name__)
+    sock = flask_sock.Sock(app)
 
     fps_controller = shared_util.FPSController()
 
@@ -97,22 +99,53 @@ def thread(server_dq, server_motor_dq):
         server_ds.put_s2(server_dq)
         return create_response(detection)
     
-    @app.route("/get", methods=["GET"])
-    def get():
-        server_ds.update_s1(server_dq)
-        server_motor_ds.update_s2(server_motor_dq)
 
-        server_motor_ds.s1["last_get"] = time.time()
-        server_motor_ds.put_s1(server_motor_dq)
+    @sock.route("/updates")
+    def updates(ws):
+        last_master = time.time()
+        last_motor = time.time()
 
-        # combine main info with motor info
-        server_ds.s1.update(server_motor_ds.s2)
-        server_ds.s1["fpses"][-2] = server_motor_ds.s2["motor_fps"]
+        while True:
+            server_ds.update_s1(server_dq)
+            server_motor_ds.update_s2(server_motor_dq)
 
-        fps_controller.update()
-        server_ds.s1["fpses"][-1] = fps_controller.fps()
+            server_motor_ds.s1["last_get"] = time.time()
+            server_motor_ds.put_s1(server_motor_dq)
 
-        return create_response(server_ds.s1)
+            # combine main info with motor info
+            server_ds.s1.update(server_motor_ds.s2)
+            server_ds.s1["fpses"][-2] = server_motor_ds.s2["motor_fps"]
+
+            fps_controller.update()
+            server_ds.s1["fpses"][-1] = fps_controller.fps()
+
+            if server_ds.s1["now"] > last_master or server_motor_ds.s2["now"] > last_motor:
+                last_master = server_ds.s1["now"]
+                last_motor = server_motor_ds.s2["now"]
+
+                now = time.time()
+                server_ds.s1["server_now"] = now
+                ws.send(flask.jsonify(server_ds.s1))
+
+            time.sleep(1 / server.consts.FPS)
+
+    
+    # @app.route("/get", methods=["GET"])
+    # def get():
+    #     server_ds.update_s1(server_dq)
+    #     server_motor_ds.update_s2(server_motor_dq)
+
+    #     server_motor_ds.s1["last_get"] = time.time()
+    #     server_motor_ds.put_s1(server_motor_dq)
+
+    #     # combine main info with motor info
+    #     server_ds.s1.update(server_motor_ds.s2)
+    #     server_ds.s1["fpses"][-2] = server_motor_ds.s2["motor_fps"]
+
+    #     fps_controller.update()
+    #     server_ds.s1["fpses"][-1] = fps_controller.fps()
+
+    #     return create_response(server_ds.s1)
 
 
     app.run(debug=False, port=5000, host="0.0.0.0", threaded=False, processes=1)

@@ -598,277 +598,285 @@ input[type="range"] {
                 });
         }
 
-        setInterval(function() {
-            const path = "get";
-            const start_ms = now_ms();
+        function disconnect() {
+            calibrated = false;
+            connected = false;
 
-            t1 = start_ms;
+            run_hazmat = false;
+            run_qr = false;
+            run_motion = false;
+
+            const time_bar_ids = ["hazmat", "qr", "motion"];
+            for (let i = 0; i < time_bar_ids.length; i++) {
+                const time_bar_id = time_bar_ids[i];
+                const time_bar_ele = document.getElementById("time-" + time_bar_id + "-bar");
+                time_bar_ele.classList.remove("time-bar-active");
+                time_bar_ele.classList.add("time-bar-idle");
+            }
+
+            keys = {};
+            display_keys();
+
+            // Note: config_sliders, write_every_frame, invert not reset when disconnected
+            // but resent when reconnected
+        }
+
+        const path = "updates";
+        const ws = new WebSocket("ws://" + current_url + path);
+        ws.addEventListener("open", (e) => {
+            console.log("WEBSOCKET CONNECTED");
+        });
+        ws.addEventListener("close" , (e) => {
+            console.log("WEBSOCKET CLOSED");
+            disconnect();
+        });
+        ws.addEventListener("error", (e) => {
+            disconnect();
+        });
+
+        ws.addEventListener("message", (e) => {
+            const data = JSON.parse(e.data);
+
+            const now = now_ms();
+
+            t1 = now;
             delta = (t1 - t0) / 1000;
             t0 = t1;
 
-            fetch(FLASK_SERVER + path)
-                .then(response => response.json())
-                .then(data => {
-                    try {
-                        try_connect();
-                        try_calibrate();
+            try {
+                try_connect();
+                try_calibrate();
 
-                        frames += 1;
+                frames += 1;
 
-                        const now = now_ms();
-                        // -------------------------------------------------- //
+                // ---------------------------------------------------------- //
 
-                        // -------------------------------------------------- //
-                        const fpses = data["fpses"];
-                        const fps_values = [...fpses, 1 / delta];
+                // ---------------------------------------------------------- //
+                const fpses = data["fpses"];
+                const fps_values = [...fpses, 1 / delta];
 
-                        const max_fps = Math.max(...fps_values);
-                        max_fpses.push(max_fps);
-                        max_fpses = max_fpses.slice(-MAX_LEN);
-                        const max_ratio_fps = Math.min(Math.max(...max_fpses), FPS_RATIO_MAX);
+                const max_fps = Math.max(...fps_values);
+                max_fpses.push(max_fps);
+                max_fpses = max_fpses.slice(-MAX_LEN);
+                const max_ratio_fps = Math.min(Math.max(...max_fpses), FPS_RATIO_MAX);
 
-                        const fps_ids = ["webcam1", "detection", "webcam2", "ir", "master", "motor", "backend", "frontend"];
+                const fps_ids = ["webcam1", "detection", "webcam2", "ir", "master", "motor", "backend", "frontend"];
 
-                        for (let i = 0; i < fps_ids.length; i++) {
-                            const fps_id = fps_ids[i];
-                            const fps = fps_values[i];
-                            const ele_id = "fps-" + fps_id;
+                for (let i = 0; i < fps_ids.length; i++) {
+                    const fps_id = fps_ids[i];
+                    const fps = fps_values[i];
+                    const ele_id = "fps-" + fps_id;
 
-                            const fps_ele = document.getElementById(ele_id);
-                            fps_ele.innerHTML = `${fps.toFixed(0)} FPS (${fps_id})`;
+                    const fps_ele = document.getElementById(ele_id);
+                    fps_ele.innerHTML = `${fps.toFixed(0)} FPS (${fps_id})`;
 
-                            const fps_bar = document.getElementById(ele_id + "-bar");
-                            const ratio = Math.min(fps / max_ratio_fps, 1.0);
-                            fps_bar.style.width = ratio * 100 + "%";
-                        }
-                        // -------------------------------------------------- //
+                    const fps_bar = document.getElementById(ele_id + "-bar");
+                    const ratio = Math.min(fps / max_ratio_fps, 1.0);
+                    fps_bar.style.width = ratio * 100 + "%";
+                }
+                // ---------------------------------------------------------- //
 
-                        // -------------------------------------------------- //
-                        const invert_mod = invert ? -1 : 1;
+                // ---------------------------------------------------------- //
+                const invert_mod = invert ? -1 : 1;
 
-                        const motors = data["motors"];
-                        const motors_ids = ["left", "right"];
-                        for (let i = 0; i < motors_ids.length; i++) {
-                            const motors_id = motors_ids[i];
+                const motors = data["motors"];
+                const motors_ids = ["left", "right"];
+                for (let i = 0; i < motors_ids.length; i++) {
+                    const motors_id = motors_ids[i];
 
-                            const target  = motors["target"][motors_id]  * 100 * invert_mod;
-                            const current = motors["current"][motors_id] * 100 * invert_mod;
+                    const target  = motors["target"][motors_id]  * 100 * invert_mod;
+                    const current = motors["current"][motors_id] * 100 * invert_mod;
 
-                            const current_abs = Math.abs(current);
-                            const target_abs  = Math.abs(target);
+                    const current_abs = Math.abs(current);
+                    const target_abs  = Math.abs(target);
 
-                            const outer_width = Math.max(current_abs, target_abs);
-                            const inner_width_raw = Math.min(current_abs, target_abs);
-                            const inner_width = inner_width_raw / outer_width * 100;
+                    const outer_width = Math.max(current_abs, target_abs);
+                    const inner_width_raw = Math.min(current_abs, target_abs);
+                    const inner_width = inner_width_raw / outer_width * 100;
 
-                            const output_id = invert ? (motors_id == "left" ? "right" : "left") : motors_id;
-                            const outer_ele = document.getElementById(output_id + "-outer-bar");
-                            outer_ele.style.width = outer_width + "%";
-                            const inner_ele = document.getElementById(output_id + "-inner-bar");
-                            inner_ele.style.width = inner_width + "%";
+                    const output_id = invert ? (motors_id == "left" ? "right" : "left") : motors_id;
+                    const outer_ele = document.getElementById(output_id + "-outer-bar");
+                    outer_ele.style.width = outer_width + "%";
+                    const inner_ele = document.getElementById(output_id + "-inner-bar");
+                    inner_ele.style.width = inner_width + "%";
 
-                            const motor_ele = document.getElementById("motor-" + output_id);
+                    const motor_ele = document.getElementById("motor-" + output_id);
 
-                            // 7: 0-100 (3) + "." + 2 decimal places + sign
-                            const current_text = current.toFixed(2).padStart(7, " ");
-                            const target_text  = target.toFixed(2).padStart(7, " ");
-                            motor_ele.innerHTML = `${current_text}% ~ ${target_text}% (${output_id})`;
+                    // 7: 0-100 (3) + "." + 2 decimal places + sign
+                    const current_text = current.toFixed(2).padStart(7, " ");
+                    const target_text  = target.toFixed(2).padStart(7, " ");
+                    motor_ele.innerHTML = `${current_text}% ~ ${target_text}% (${output_id})`;
 
-                            let target_ele = outer_ele;
-                            let current_ele = inner_ele;
-                            if (current_abs > target_abs) {
-                                target_ele = inner_ele;
-                                current_ele = outer_ele;
-                            }
-
-                            target_ele.classList.remove("forward-light", "backward-light", "forward-dark", "backward-dark");
-                            current_ele.classList.remove("forward-light", "backward-light", "forward-dark", "backward-dark");
-
-                            if (target < 0)  { target_ele.classList.add("backward-light"); }
-                            else             { target_ele.classList.add("forward-light");  }
-                            if (current < 0) { current_ele.classList.add("backward-light"); }
-                            else             { current_ele.classList.add("forward-light");  }
-                        }
-                        // -------------------------------------------------- //
-                        
-                        // -------------------------------------------------- //
-                        const stats_ids = ["cpu", "gpu", "ram"];
-
-                        for (let i = 0; i < stats_ids.length; i++) {
-                            const stats_id = stats_ids[i];
-                            const stat = data["stats"][stats_id];
-
-                            const ele_id = "stats-" + stats_id;
-                            const stat_ele = document.getElementById(ele_id);
-
-                            if (stats_id == "ram") {
-                                const swap = data["stats"]["swap"];
-                                stat_ele.innerHTML = `${stat.toFixed(1)}% (${swap.toFixed(1)}%) (ram/swap)`;
-                            } else {
-                                stat_ele.innerHTML = `${stat.toFixed(0)}% (${stats_id})`;
-                            }
-
-                            const stat_bar = document.getElementById(ele_id + "-bar");
-                            stat_bar.style.width = stat + "%";
-                        }
-                        // -------------------------------------------------- //
-
-                        // -------------------------------------------------- //
-                        const time_ids = ["hazmat", "qr", "motion"];
-
-                        for (let i = 0; i < time_ids.length; i++) {
-                            const time_id = time_ids[i];
-                            const time = data["time_bars"][time_id];
-                            const time_value = time > 0 ? time * 1000 : -1;
-
-                            const ele_id = "time-" + time_id;
-
-                            const time_ele = document.getElementById(ele_id);
-                            time_ele.innerHTML = `${time_value.toFixed(0)} MS (${time_id})`;
-
-                            const time_bar = document.getElementById(ele_id + "-bar");
-                            const ratio = time_value / TIME_SCALES[time_id];
-                            const width = time > 0 ? (ratio * 100) : 100;
-                            time_bar.style.width = width + "%";
-                        }
-                        // -------------------------------------------------- //
-
-                        // -------------------------------------------------- //
-                        const temp_ids = ["cpu", "gpu", "aux"];
-
-                        for (let i = 0; i < temp_ids.length; i++) {
-                            const temp_id = temp_ids[i];
-                            const temp = data["temps"][temp_id];
-
-                            const ele_id = "temp-" + temp_id;
-                            const temp_ele = document.getElementById(ele_id);
-
-                            temp_ele.innerHTML = `${temp.toFixed(1)} °C (${temp_id})`;
-
-                            const temp_bar = document.getElementById(ele_id + "-bar");
-                            temp_bar.style.width = temp + "%";
-
-                            const temp_level = Object.keys(TEMP_CUTOFFS).find(key => temp < TEMP_CUTOFFS[key]);
-                            temp_bar.classList.remove("temp-cold", "temp-cool", "temp-mid", "temp-warm", "temp-hot", "temp-boil");
-                            temp_bar.classList.add("temp-" + temp_level);
-                        }
-                        // -------------------------------------------------- //
-
-                        // -------------------------------------------------- //
-                        const angle = data["angle"] == 0 ? 360 : data["angle"];
-                        const angle_ele = document.getElementById("angle");
-                        angle_ele.innerHTML = `${angle.toFixed(0)}°`;
-
-                        const angle_bar = document.getElementById("angle-bar");
-                        angle_bar.style.width = (angle / 360) * 100 + "%";
-                        // -------------------------------------------------- //
-
-                        // -------------------------------------------------- //
-                        const frames_ids = ["webcam1", "detection", "webcam2", "ir"];
-                        for (let i = 0; i < frames_ids.length; i++) {
-                            const frame_id = frames_ids[i];
-                            const frame = data["frames"][frame_id];
-                            const frame_ele = document.getElementById(frame_id);
-                            frame_ele.src = "data:image/jpeg;base64," + frame;
-                        }
-                        // -------------------------------------------------- //
-
-                        // -------------------------------------------------- //
-                        const hazmats_ele = document.getElementById("found-hazmat");
-                        const hazmats = [...new Set(data["hazmats_found"])];
-                        hazmats_ele.innerHTML = hazmats.sort().join("<br />");
-
-                        const qrs_ele = document.getElementById("found-qr");
-                        const qrs = [...new Set(data["qr_found"])];
-                        qrs_ele.innerHTML = qrs.sort().join("<br />");
-                        // -------------------------------------------------- //
-
-                        // -------------------------------------------------- //
-                        const ratio = (view_mode == 0 || super_zoom) ? GRID_FRAME_RATIO : ZOOM_FRAME_RATIO;
-
-                        const EM = 16; // 1em = 16px (usually)
-                        const max_w = window.innerWidth * (show_sidebar ? 3 / 4 : 1) - (show_sidebar ? 3 : 2) * EM;
-                        const max_h = window.innerHeight - 2 * EM;
-
-                        const w = Math.min(max_w, max_h * ratio);
-                        const h = Math.min(max_h, max_w / ratio);
-                        
-                        const frameholder_ele = document.getElementById("frameholder");
-                        frameholder_ele.style.width = w + "px";
-                        frameholder_ele.style.height = h + "px";
-
-                        const sidebar_w = (window.innerWidth - w - 5 * EM) * (show_sidebar ? 1 : 0);
-                        const sidebar_ele = document.getElementById("sidebar");
-                        sidebar_ele.style.width = sidebar_w + "px";
-                        // -------------------------------------------------- //
-
-                        // -------------------------------------------------- //
-                        const ms = data["time"] * 1000;
-                        const diff = now - ms - ms_offset;
-                        const inital_delay = diff.toFixed(0);
-
-                        delays.push(diff);
-                        delays = delays.slice(-MAX_LEN);
-                        const average = delays.reduce((a, b) => a + b, 0) / delays.length;
-                        const average_delay = average.toFixed(0);
-
-                        const ping = now - start_ms;
-                        const ping_delay = ping.toFixed(0);
-
-                        const max_delay = Math.max(inital_delay, average_delay, ping_delay, DELAY_RATIO_BASE);
-                        max_delays.push(max_delay);
-                        max_delays = max_delays.slice(-MAX_LEN);
-                        const max_ratio_delay = Math.max(...max_delays);
-
-                        const base_key = invert ? "webcam2" : "webcam1";
-                        if (last_frame != data["frames"][base_key]) {
-                            last_frame = data["frames"][base_key];
-
-                            const delay_inital_ele = document.getElementById("delay-inital");
-                            delay_inital_ele.innerHTML = inital_delay + " MS (inital)";
-                            const delaybar_inital = document.getElementById("delay-inital-bar");
-                            delaybar_inital.style.width = (inital_delay / max_ratio_delay) * 100 + "%";
-                        }
-
-                        const delay_total_ele = document.getElementById("delay-total");
-                        delay_total_ele.innerHTML = average_delay + " MS (average)";
-                        const delaybar_total = document.getElementById("delay-total-bar");
-                        delaybar_total.style.width = (average_delay / max_ratio_delay) * 100 + "%";
-
-                        const delay_ping_ele = document.getElementById("delay-ping")
-                        delay_ping_ele.innerHTML = ping_delay + " MS (ping)";
-                        const delaybar_ping = document.getElementById("delay-ping-bar");
-                        delaybar_ping.style.width = (ping_delay / max_ratio_delay) * 100 + "%";
-                        // -------------------------------------------------- //
-                    } catch (e) {
-                        console.log(e);
-                    }
-                })
-                .catch(e => {
-                    console.log(`fetch 'get' failed: ${e}`);
-                    
-                    calibrated = false;
-                    connected = false;
-
-                    run_hazmat = false;
-                    run_qr = false;
-                    run_motion = false;
-
-                    const time_bar_ids = ["hazmat", "qr", "motion"];
-                    for (let i = 0; i < time_bar_ids.length; i++) {
-                        const time_bar_id = time_bar_ids[i];
-                        const time_bar_ele = document.getElementById("time-" + time_bar_id + "-bar");
-                        time_bar_ele.classList.remove("time-bar-active");
-                        time_bar_ele.classList.add("time-bar-idle");
+                    let target_ele = outer_ele;
+                    let current_ele = inner_ele;
+                    if (current_abs > target_abs) {
+                        target_ele = inner_ele;
+                        current_ele = outer_ele;
                     }
 
-                    keys = {};
-                    display_keys();
-                    
-                    // Note: config_sliders, write_every_frame, invert not reset when disconnected
-                    // but resent when reconnected
-                });
-        }, DELAY);
+                    target_ele.classList.remove("forward-light", "backward-light", "forward-dark", "backward-dark");
+                    current_ele.classList.remove("forward-light", "backward-light", "forward-dark", "backward-dark");
+
+                    if (target < 0)  { target_ele.classList.add("backward-light"); }
+                    else             { target_ele.classList.add("forward-light");  }
+                    if (current < 0) { current_ele.classList.add("backward-light"); }
+                    else             { current_ele.classList.add("forward-light");  }
+                }
+                // ---------------------------------------------------------- //
+                
+                // ---------------------------------------------------------- //
+                const stats_ids = ["cpu", "gpu", "ram"];
+
+                for (let i = 0; i < stats_ids.length; i++) {
+                    const stats_id = stats_ids[i];
+                    const stat = data["stats"][stats_id];
+
+                    const ele_id = "stats-" + stats_id;
+                    const stat_ele = document.getElementById(ele_id);
+
+                    if (stats_id == "ram") {
+                        const swap = data["stats"]["swap"];
+                        stat_ele.innerHTML = `${stat.toFixed(1)}% (${swap.toFixed(1)}%) (ram/swap)`;
+                    } else {
+                        stat_ele.innerHTML = `${stat.toFixed(0)}% (${stats_id})`;
+                    }
+
+                    const stat_bar = document.getElementById(ele_id + "-bar");
+                    stat_bar.style.width = stat + "%";
+                }
+                // ---------------------------------------------------------- //
+
+                // ---------------------------------------------------------- //
+                const time_ids = ["hazmat", "qr", "motion"];
+
+                for (let i = 0; i < time_ids.length; i++) {
+                    const time_id = time_ids[i];
+                    const time = data["time_bars"][time_id];
+                    const time_value = time > 0 ? time * 1000 : -1;
+
+                    const ele_id = "time-" + time_id;
+
+                    const time_ele = document.getElementById(ele_id);
+                    time_ele.innerHTML = `${time_value.toFixed(0)} MS (${time_id})`;
+
+                    const time_bar = document.getElementById(ele_id + "-bar");
+                    const ratio = time_value / TIME_SCALES[time_id];
+                    const width = time > 0 ? (ratio * 100) : 100;
+                    time_bar.style.width = width + "%";
+                }
+                // ---------------------------------------------------------- //
+
+                // ---------------------------------------------------------- //
+                const temp_ids = ["cpu", "gpu", "aux"];
+
+                for (let i = 0; i < temp_ids.length; i++) {
+                    const temp_id = temp_ids[i];
+                    const temp = data["temps"][temp_id];
+
+                    const ele_id = "temp-" + temp_id;
+                    const temp_ele = document.getElementById(ele_id);
+
+                    temp_ele.innerHTML = `${temp.toFixed(1)} °C (${temp_id})`;
+
+                    const temp_bar = document.getElementById(ele_id + "-bar");
+                    temp_bar.style.width = temp + "%";
+
+                    const temp_level = Object.keys(TEMP_CUTOFFS).find(key => temp < TEMP_CUTOFFS[key]);
+                    temp_bar.classList.remove("temp-cold", "temp-cool", "temp-mid", "temp-warm", "temp-hot", "temp-boil");
+                    temp_bar.classList.add("temp-" + temp_level);
+                }
+                // ---------------------------------------------------------- //
+
+                // ---------------------------------------------------------- //
+                const angle = data["angle"] == 0 ? 360 : data["angle"];
+                const angle_ele = document.getElementById("angle");
+                angle_ele.innerHTML = `${angle.toFixed(0)}°`;
+
+                const angle_bar = document.getElementById("angle-bar");
+                angle_bar.style.width = (angle / 360) * 100 + "%";
+                // ---------------------------------------------------------- //
+
+                // ---------------------------------------------------------- //
+                const frames_ids = ["webcam1", "detection", "webcam2", "ir"];
+                for (let i = 0; i < frames_ids.length; i++) {
+                    const frame_id = frames_ids[i];
+                    const frame = data["frames"][frame_id];
+                    const frame_ele = document.getElementById(frame_id);
+                    frame_ele.src = "data:image/jpeg;base64," + frame;
+                }
+                // ---------------------------------------------------------- //
+
+                // ---------------------------------------------------------- //
+                const hazmats_ele = document.getElementById("found-hazmat");
+                const hazmats = [...new Set(data["hazmats_found"])];
+                hazmats_ele.innerHTML = hazmats.sort().join("<br />");
+
+                const qrs_ele = document.getElementById("found-qr");
+                const qrs = [...new Set(data["qr_found"])];
+                qrs_ele.innerHTML = qrs.sort().join("<br />");
+                // ---------------------------------------------------------- //
+
+                // ---------------------------------------------------------- //
+                const ratio = (view_mode == 0 || super_zoom) ? GRID_FRAME_RATIO : ZOOM_FRAME_RATIO;
+
+                const EM = 16; // 1em = 16px (usually)
+                const max_w = window.innerWidth * (show_sidebar ? 3 / 4 : 1) - (show_sidebar ? 3 : 2) * EM;
+                const max_h = window.innerHeight - 2 * EM;
+
+                const w = Math.min(max_w, max_h * ratio);
+                const h = Math.min(max_h, max_w / ratio);
+                
+                const frameholder_ele = document.getElementById("frameholder");
+                frameholder_ele.style.width = w + "px";
+                frameholder_ele.style.height = h + "px";
+
+                const sidebar_w = (window.innerWidth - w - 5 * EM) * (show_sidebar ? 1 : 0);
+                const sidebar_ele = document.getElementById("sidebar");
+                sidebar_ele.style.width = sidebar_w + "px";
+                // ---------------------------------------------------------- //
+
+                // ---------------------------------------------------------- //
+                const ms = data["time"] * 1000;
+                const diff = now - ms - ms_offset;
+                const inital_delay = diff.toFixed(0);
+
+                delays.push(diff);
+                delays = delays.slice(-MAX_LEN);
+                const average = delays.reduce((a, b) => a + b, 0) / delays.length;
+                const average_delay = average.toFixed(0);
+
+                const ping = now - data["server_time"] * 1000;
+                const ping_delay = ping.toFixed(0);
+
+                const max_delay = Math.max(inital_delay, average_delay, ping_delay, DELAY_RATIO_BASE);
+                max_delays.push(max_delay);
+                max_delays = max_delays.slice(-MAX_LEN);
+                const max_ratio_delay = Math.max(...max_delays);
+
+                const base_key = invert ? "webcam2" : "webcam1";
+                if (last_frame != data["frames"][base_key]) {
+                    last_frame = data["frames"][base_key];
+
+                    const delay_inital_ele = document.getElementById("delay-inital");
+                    delay_inital_ele.innerHTML = inital_delay + " MS (inital)";
+                    const delaybar_inital = document.getElementById("delay-inital-bar");
+                    delaybar_inital.style.width = (inital_delay / max_ratio_delay) * 100 + "%";
+                }
+
+                const delay_total_ele = document.getElementById("delay-total");
+                delay_total_ele.innerHTML = average_delay + " MS (average)";
+                const delaybar_total = document.getElementById("delay-total-bar");
+                delaybar_total.style.width = (average_delay / max_ratio_delay) * 100 + "%";
+
+                const delay_ping_ele = document.getElementById("delay-ping")
+                delay_ping_ele.innerHTML = ping_delay + " MS (ping)";
+                const delaybar_ping = document.getElementById("delay-ping-bar");
+                delaybar_ping.style.width = (ping_delay / max_ratio_delay) * 100 + "%";
+                // ---------------------------------------------------------- //
+            } catch (e) {
+                console.log(e);
+            }
+        });
 
 
         function invertCheckbox() {

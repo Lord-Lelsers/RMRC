@@ -71,7 +71,7 @@ def thread(server_motor_dq, video_capture_zero):
                 server_motor_ds.s2["motors"]["current"]["right"] = server_motor_ds.s1["right"] * ratio_right
 
                 time.sleep(1 / motors.consts.MOTOR_TEST_FPS)
-
+            server_motor_ds.s2["now"] = now
             server_motor_ds.put_s2(server_motor_dq)
     finally:
         if not video_capture_zero:

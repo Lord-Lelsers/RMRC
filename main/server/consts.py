@@ -1,3 +1,5 @@
+import time
+
 STATE_FROM_MASTER = {
     "frames": {
 		"webcam1": "",
@@ -31,7 +33,9 @@ STATE_FROM_MASTER = {
         "hazmat": 0,
         "qr": 0,
         "motion": 0,
-    }
+    },
+
+    "now": time.time(),
 }
 STATE_FROM_SELF = {
     "run": {

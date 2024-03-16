@@ -204,10 +204,12 @@ def thread(detection_dq, server_dq, camera_sqs, video_capture_zero):
                         pieces_needed -= 1
                     if pieces_needed == 0: break
 
+            now = time.time()
+            server_ds.s1["now"] = now
             server_ds.put_s1(server_dq)
 
 
-            pass_time = time.time() - start
+            pass_time = now - start
             times.append(pass_time)
             times = times[-master.consts.TIMES_TO_KEEP:]
             avg_time = sum(times) / len(times)
