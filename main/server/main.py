@@ -125,9 +125,11 @@ def thread(server_dq, server_motor_dq):
 
                 now = time.time()
                 server_ds.s1["server_now"] = now
-                ws.send(flask.jsonify(server_ds.s1))
 
-            time.sleep(1 / server.consts.FPS)
+                ws.send(flask.jsonify(server_ds.s1))
+                time.sleep(server.consts.LARGE_WAIT)
+            else:
+                time.sleep(server.consts.SMALL_WAIT)
 
     
     # @app.route("/get", methods=["GET"])

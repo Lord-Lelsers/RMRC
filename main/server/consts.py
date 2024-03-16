@@ -1,5 +1,8 @@
 import time
 
+SMALL_WAIT = 1 / 60
+LARGE_WAIT = 1 / 20
+
 STATE_FROM_MASTER = {
     "frames": {
 		"webcam1": "",
